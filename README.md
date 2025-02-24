@@ -5,3 +5,27 @@ Dataway 是基于 DataQL 服务聚合能力，为应用提供的一个接口配�
 这种内嵌集成方式模式的优点是，可以使得大部分老项目都可以在无侵入的情况下直接应用 Dataway。进而改进老项目的迭代效率，大大减少企业项目研发成本。
 Dataway 工具化的提供 DataQL 配置能力。这种研发模式的变革使得，相当多的需求开发场景只需要配置即可完成交付。从而避免了从数据存取到前端接口之间的一系列开发任务，例如：Mapper、BO、VO、DO、DAO、Service、Controller 统统不在需要。
 Dataway 是 Hasor 生态中的一员，因此在 Spring 中使用 Dataway 首先要做的就是打通两个生态。根据官方文档中推荐的方式我们将 Hasor 和 Spring Boot 整合起来。这里是原文：https://www.hasor.net/web/extends/spring/for_boot.html
+
+分页查询
+
+var currentPage=${currentPage}
+var pageSize=${pageSize}
+var offset=(currentPage - 1) * pageSize;
+
+var dimSQL = @@sql(pageSize,offset)<%
+select * from user LIMIT #{pageSize} OFFSET #{offset}
+%>;
+
+var queryPage = dimSQL(pageSize,offset);
+
+return queryPage
+
+
+多数据源查询
+hint FRAGMENT_SQL_DATA_SOURCE="ds2"
+var t=@@sql()<%select * from user_dataway_2%>
+var ds1_default_result=t();
+return {
+"r2":ds1_default_result
+}
+
