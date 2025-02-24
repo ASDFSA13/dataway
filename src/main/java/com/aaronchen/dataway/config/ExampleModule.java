@@ -1,5 +1,6 @@
 package com.aaronchen.dataway.config;
 
+import com.aaronchen.dataway.DatawayApplication;
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.nacos.api.config.ConfigFactory;
 import com.alibaba.nacos.api.config.ConfigService;
@@ -10,11 +11,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.core.ApiBinder;
 import net.hasor.core.DimModule;
 import net.hasor.dataql.QueryApiBinder;
+import net.hasor.dataql.fx.db.LookupDataSourceListener;
 import net.hasor.db.JdbcModule;
 import net.hasor.db.Level;
 import net.hasor.spring.SpringModule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.stereotype.Component;
 
@@ -42,8 +45,11 @@ import org.springframework.stereotype.Component;
 public class ExampleModule implements SpringModule {
     @Autowired
     private DataSource dataSource = null;
-    private DataSource dataSource1 = null;
-    private DataSource dataSource2 = null;
+    private  DataSource dataSource1 = null;
+    private  DataSource dataSource2 = null;
+
+    private JdbcModule ds1;
+    private JdbcModule ds2;
 
     @Value("${nacos.config.server-addr:127.0.0.1:8848}")
     private String nacosServerAddr;  // Nacos 服务器地址
@@ -70,18 +76,26 @@ public class ExampleModule implements SpringModule {
 
         // 获取初始数据库配置
         List<String> databaseUrls = getDatabaseUrlsFromNacos();
+        apiBinder.installModule(new JdbcModule(Level.Full, this.dataSource));
         updateDataSource(databaseUrls);
 
         // 添加 Nacos 配置监听器，监听配置变化
         addNacosConfigListener();
-
-
-        apiBinder.installModule(new JdbcModule(Level.Full, this.dataSource));
-
+        //init two jdbc_module
+//        this.ds1 = new JdbcModule(Level.Full, "ds1", this.dataSource1);
+//        this.ds2 = new JdbcModule(Level.Full, "ds2", this.dataSource2);
         //初始化注册两个数据源
-        apiBinder.installModule(new JdbcModule(Level.Full, "ds1", this.dataSource1));
-        apiBinder.installModule(new JdbcModule(Level.Full, "ds2", this.dataSource2));
-
+        apiBinder.bindSpiListener(LookupDataSourceListener.class, (lookupName) -> {
+            //动态数据库处理
+            if ("ds2".equals(lookupName)) {
+                return this.dataSource2;
+            }
+            if ("ds1".equals(lookupName)) {
+                return this.dataSource1;
+            }
+            //返回默认数据源
+            return this.dataSource;
+        });
 
     }
 
@@ -156,6 +170,19 @@ public class ExampleModule implements SpringModule {
                 List<String> databaseUrls = parseDatabaseUrls(configInfo);
                 updateDataSource(databaseUrls);
                 System.out.println("Nacos 配置已更新，DataSource 已更换。");
+                //用新的数据源更新数据库
+                // 获取更新好的数据源
+//            this.ds1 = new JdbcModule(Level.Full, "ds1", this.dataSource1);
+//            this.ds2 = new JdbcModule(Level.Full, "ds2", this.dataSource2);
+//            this.ds1.loadModule(apiBinder);
+//            this.ds2.loadModule(apiBinder);
+//                try {
+//                    apiBinder.installModule(new JdbcModule(Level.Full, "ds3", ExampleModule.dataSource1));
+//                    apiBinder.installModule(new JdbcModule(Level.Full, "ds4", ExampleModule.dataSource2));
+//                } catch (Throwable e) {
+//                    throw new RuntimeException(e);
+//                }
+
             }
         });
     }
