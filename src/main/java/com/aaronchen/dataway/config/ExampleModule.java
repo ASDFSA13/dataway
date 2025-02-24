@@ -97,6 +97,7 @@ public class ExampleModule implements SpringModule {
             return this.dataSource;
         });
 
+
     }
 
     // 从 Nacos 加载数据库配置
@@ -172,16 +173,6 @@ public class ExampleModule implements SpringModule {
                 System.out.println("Nacos 配置已更新，DataSource 已更换。");
                 //用新的数据源更新数据库
                 // 获取更新好的数据源
-//            this.ds1 = new JdbcModule(Level.Full, "ds1", this.dataSource1);
-//            this.ds2 = new JdbcModule(Level.Full, "ds2", this.dataSource2);
-//            this.ds1.loadModule(apiBinder);
-//            this.ds2.loadModule(apiBinder);
-//                try {
-//                    apiBinder.installModule(new JdbcModule(Level.Full, "ds3", ExampleModule.dataSource1));
-//                    apiBinder.installModule(new JdbcModule(Level.Full, "ds4", ExampleModule.dataSource2));
-//                } catch (Throwable e) {
-//                    throw new RuntimeException(e);
-//                }
 
             }
         });
