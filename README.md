@@ -29,3 +29,27 @@ return {
 "r2":ds1_default_result
 }
 
+
+关联数据库查询
+import 'net.hasor.dataql.fx.basic.CollectionUdfSource' as collect;
+
+{
+hint FRAGMENT_SQL_DATA_SOURCE="ds1"
+var t=@@sql()<%select * from roles%>
+var ds2_default_result=t();
+}
+{
+hint FRAGMENT_SQL_DATA_SOURCE="ds2"
+var t=@@sql()<%select * from user_dataway_2%>
+var ds1_default_result=t();
+}
+
+var result=collect.mapJoin(ds1_default_result,ds2_default_result, { "user_id":"user_id" }) => [
+{
+"user_id": data1.user_id,
+"username": data1.username,
+"email": data1.email,
+"role": data2.role_name
+}
+]
+return result;
