@@ -1,5 +1,6 @@
 package com.aaronchen.dataway.config;
 
+import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.nacos.api.config.ConfigFactory;
 import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.exception.NacosException;
@@ -16,11 +17,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.stereotype.Component;
-import net.hasor.dataql.Finder;
 
 import javax.sql.DataSource;
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import net.hasor.core.ApiBinder;
+import net.hasor.core.DimModule;
+import net.hasor.dataql.Finder;
+import net.hasor.dataql.QueryApiBinder;
+import net.hasor.db.JdbcModule;
+import net.hasor.db.Level;
+import net.hasor.spring.SpringModule;
+import org.springframework.stereotype.Component;
 
 /**
  * @Author: Aaron chen
@@ -51,8 +62,10 @@ public class ExampleModule implements SpringModule {
 
     @Value("${spring.datasource.password}")
     private String password;
+    ApiBinder apiBinder;
     @Override
     public void loadModule(ApiBinder apiBinder) throws Throwable {
+        this.apiBinder=apiBinder;
         configService=createNacosConfigService(); // 创建 Nacos 配置服务`
 
         // 获取初始数据库配置
@@ -63,35 +76,22 @@ public class ExampleModule implements SpringModule {
         addNacosConfigListener();
 
 
-        // .DataSource form Spring boot into Hasor 最基本的例程 来做一个初始化单数据源
         apiBinder.installModule(new JdbcModule(Level.Full, this.dataSource));
 
-        // 参考官方工程源码注册dataSource 批量安装模块
-//        QueryApiBinder queryBinder = apiBinder.tryCast(QueryApiBinder.class);
-        // dataql中的命名"ds1" ； Level.Full 作用域的范围；this.dataSource1具体的数据源的指明
-//        this.dataSource1
-//        apiBinder.installModule(new JdbcModule(Level.Full, this.dataSource));
-
-//        apiBinder.installModule(new JdbcModule(Level.Full, "ds1", this.dataSource1));
-//        apiBinder.installModule(new JdbcModule(Level.Full, "ds2", this.dataSource2));
-        // udf/udfSource/import 指令 的类型创建委托给 spring
-//        queryBinder.bindFinder(apiBinder);
+        //初始化注册两个数据源
+        apiBinder.installModule(new JdbcModule(Level.Full, "ds1", this.dataSource1));
+        apiBinder.installModule(new JdbcModule(Level.Full, "ds2", this.dataSource2));
 
 
     }
 
     // 从 Nacos 加载数据库配置
     private List<String> getDatabaseUrlsFromNacos() throws NacosException {
-//        ConfigService configService = createNacosConfigService();  // 创建 Nacos 配置服务
         String content = configService.getConfig(dataId, group, 5000);  // 获取配置内容
         return parseDatabaseUrls(content);  // 解析数据库 URL 配置
     }
 
-    // 创建 Nacos 配置服务
-//    private ConfigService createNacosConfigService() throws NacosException {
-//        // 创建 Nacos 客户端
-//        return new ClientWorker().getConfigService(nacosServerAddr);  // 获取 Nacos 配置服务
-//    }
+
     // 获取 Nacos 配置类服务
     private ConfigService createNacosConfigService() throws NacosException {
         // 使用 ConfigFactory 创建 ConfigService 实例
@@ -112,21 +112,33 @@ public class ExampleModule implements SpringModule {
     }
 
     // 创建 DataSource 实例
-    private DataSource createDataSource(String databaseUrl) {
-        return DataSourceBuilder.create()
-                .url(databaseUrl)
-                .username(username)
-                .password(password)
-                .driverClassName("com.mysql.cj.jdbc.Driver")
-                .build();
+    private DataSource createDataSource(String databaseUrl) throws SQLException {
+        DruidDataSource druid = new DruidDataSource();
+        druid.setUrl(databaseUrl);
+        druid.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        druid.setUsername(username);
+        druid.setPassword(password);
+        druid.setMaxActive(50);
+        druid.setMaxWait(3 * 1000);
+        druid.setInitialSize(1);
+        druid.setConnectionErrorRetryAttempts(1);
+        druid.setBreakAfterAcquireFailure(true);
+        druid.setTestOnBorrow(true);
+        druid.setTestWhileIdle(true);
+        druid.setFailFast(true);
+        druid.init();
+        return druid;
     }
 
     // 动态更新 DataSource
     private void updateDataSource(List<String> databaseUrls) {
         // init
-        this.dataSource1 = createDataSource(databaseUrls.get(0));
-
-        this.dataSource2 = createDataSource(databaseUrls.get(1))   ;
+        try {
+            this.dataSource1 = createDataSource(databaseUrls.get(0));
+            this.dataSource2 = createDataSource(databaseUrls.get(1));
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // 注册 Nacos 配置监听器
@@ -147,32 +159,6 @@ public class ExampleModule implements SpringModule {
             }
         });
     }
-
-//    private void addNacosConfigListener() throws NacosException {
-//        configService.addListener(dataId, group, new com.alibaba.nacos.api.config.listener.Listener() {
-//            @Override
-//            public Executor getExecutor() {
-//                return null;
-//            }
-//
-//            @Override
-//            public void receiveConfigInfo(String configInfo) {
-//                // 配置变化时，重新加载配置并更新 DataSource
-//                List<String> databaseUrls = parseDatabaseUrls(configInfo);
-//                updateDataSource(databaseUrls);
-//                System.out.println("Nacos 配置已更新，DataSource 已更换。");
-//            }
-//
-//            public void lostConnection() {
-//                System.out.println("Nacos 配置失去连接。");
-//            }
-//
-//            public void connecetionRecovered() {
-//                System.out.println("Nacos 配置连接恢复。");
-//            }
-//        });
-//    }
-
 
     // 内部类，表示数据库配置
     public static class DatabaseConfig {
